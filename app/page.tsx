@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import Hello from './Hello'
+import Top from './top'
 
 export default function Home() {
 
   return <div>
-            <Hello />
+            <Top />
             </div>
 }
