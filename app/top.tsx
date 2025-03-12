@@ -60,7 +60,7 @@ export default function Home() {
         {/* Spotifyログイン用リンク */}
         <div className="mb-6">
           <a
-            href="/api/auth/login"
+            href="/api/auth"
             className="inline-block bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded"
           >
             Spotifyでログイン
