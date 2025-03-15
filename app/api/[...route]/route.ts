@@ -1,37 +1,40 @@
-// /app/api/[...route]/route.ts
-
 import { Hono } from "hono";
 import { handle } from "hono/vercel";
 import { setCookie } from "hono/cookie";
 import axios from "axios";
 export const dynamic = "force-dynamic";
-import dotenv from "dotenv";
 import { randomBytes } from "crypto";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Buffer } from "buffer";
 import mime from "mime-types";
+import dotenv from "dotenv";
+dotenv.config();
 
 const app = new Hono().basePath("/api");
-const scope = "user-read-private user-read-email playlist-modify-private playlist-modify-public ";
+const scope =
+  "user-read-private user-read-email playlist-modify-private playlist-modify-public ";
 // 必要なスコープ
 
 // ParsedForm の型定義
 interface ParsedForm {
   fields: { [key: string]: string };
-  files: { [key: string]: { content: Buffer; filename: string; mimeType?: string } };
+  files: {
+    [key: string]: { content: Buffer; filename: string; mimeType?: string };
+  };
 }
-dotenv.config();
 
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID || "";
-// const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET || "";
-const SPOTIFY_REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI || "";
-
-// GoogleGenerativeAI のインスタンスを生成
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-
-
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? (() => {
+  console.error("GEMINI_API_KEY is not set");
+  return "";
+})();
+const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID ?? (() => {
+  console.error("SPOTIFY_CLIENT_ID is not set");
+  return "";
+})();
+const SPOTIFY_REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI ?? (() => {
+  console.error("SPOTIFY_REDIRECT_URI is not set");
+  return "";
+})();
 
 app.get("/auth", (c) => {
   // Generate a secure random state string
@@ -70,9 +73,24 @@ app.get("/callback", async (c) => {
     return c.json({ error: "Authorization code is missing" }, 400);
   }
 
-  const redirectUri = process.env.SPOTIFY_REDIRECT_URI!;
-  const clientId = process.env.SPOTIFY_CLIENT_ID!;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET!;
+  const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
+  if (!redirectUri) {
+    console.error("SPOTIFY_REDIRECT_URI is not set");
+    return c.json({ error: "SPOTIFY_REDIRECT_URI is not set" }, 500);
+  }
+
+  if (!clientId) {
+    console.error("SPOTIFY_CLIENT_ID is not set");
+    return c.json({ error: "SPOTIFY_CLIENT_ID is not set" }, 500);
+  }
+
+  if (!clientSecret) {
+    console.error("SPOTIFY_CLIENT_SECRET is not set");
+    return c.json({ error: "SPOTIFY_CLIENT_SECRET is not set" }, 500);
+  }
 
   // Basic 認証用のトークン生成
   const basicAuthToken = Buffer.from(`${clientId}:${clientSecret}`).toString(
@@ -114,76 +132,78 @@ app.get("/callback", async (c) => {
   }
 });
 
-
 /**
  * POST /upload
  * フロントエンドからのリクエストを受け、セットリストのテキスト抽出と Spotify プレイリスト作成を行うエンドポイント
  */
 app.post("/upload", async (c) => {
-  console.log("Received /upload request");
-  const rawBody = await c.req.parseBody();
-  const form: ParsedForm =
-    rawBody &&
-    typeof rawBody === "object" &&
-    "fields" in rawBody &&
-    "files" in rawBody
-      ? (rawBody as unknown as ParsedForm)
-      : { fields: {}, files: {} };
-  console.log("Parsed form:", form);
+  try {
+    const formData = await c.req.formData();
+    console.log("受信したフォームデータ:", formData);
 
-  // プレイリスト名（未指定の場合は今日の日付＋Setlist）
-  const playlistName: string =
-    form.fields.playlistName ||
-    `${new Date().toISOString().slice(0, 10)} Setlist`;
-  // 入力形式（"text" または "image"、デフォルトは "text"）
-  const inputType: string = form.fields.inputType || "text";
-  let rawText = "";
-
-  if (inputType === "text") {
-    rawText = form.fields.setlistText || "";
-  } else if (inputType === "image") {
-    const imageFile = form.files?.image;
-    if (imageFile && imageFile.content) {
-      const detectedMime =
-        imageFile.mimeType || mime.lookup(imageFile.filename) || "image/png";
-      const base64Image = imageFile.content.toString("base64");
-      const imagePart = {
-        inlineData: {
-          data: base64Image,
-          mimeType: detectedMime,
-        },
-      };
-      const prompt = "この画像からセットリストのテキストを抽出してください。";
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-      const result = await model.generateContent([prompt, imagePart]);
-      const response = await result.response;
-      rawText = response.text();
-    } else {
-      return c.json({ message: "画像が提供されていません" }, 400);
+    const fileField = formData.get("file");
+    if (!fileField) {
+      console.error("エラー: ファイルが受信できていません");
+      return c.json({ error: "File is missing" }, 400);
     }
-  } else {
-    return c.json({ message: "inputTypeが不正です" }, 400);
-  }
-  function parseSetlistText(rawText: string): string {
-    const lines = rawText.split("\n");
-    const formatted: string[] = [];
-    let index = 1;
-    for (const line of lines) {
-      if (line.includes(" - ")) {
-        formatted.push(`${index}. ${line.trim()}`);
-        index++;
-      }
+    if (!(fileField instanceof File)) {
+      console.error("エラー: fileField が File インスタンスではありません");
+      return c.json({ error: "Invalid file format" }, 400);
     }
-    return formatted.join("\n");
+    
+    // 画像ファイルかどうかをチェック
+    if (!fileField.type.startsWith("image/")) {
+      console.error("エラー: アップロードされたファイルが画像ではありません");
+      return c.json({ error: "Uploaded file is not an image" }, 400);
+    }
+    
+    console.log("受信したファイル:", fileField);
+
+    // File を base64 変換
+    const buffer = await fileField.arrayBuffer();
+    const base64Image = Buffer.from(buffer).toString("base64");
+    console.log("Base64エンコードされた画像:", base64Image);
+
+    // Google Generative AI クライアントを初期化
+    const apiKey = GEMINI_API_KEY;
+    if (!apiKey) {
+      return c.json({ error: "Gemini API Key is missing" }, 500);
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+    const mimeType = mime.lookup(fileField.name) || "application/octet-stream";
+
+    // Gemini API へ送信するプロンプト
+    const prompt = `
+    画像のセットリストをOCRで解析し、以下のJSON形式で出力してください。
+
+    {
+      "tracks": [
+        {
+          "trackName": "楽曲名",
+          "artistNames": ["アーティストA", "アーティストB"]
+        }
+      ]
+    }
+
+    もし認識できなかった場合は null を返してください。
+    `;
+
+    // Gemini API へリクエスト
+    const result = await model.generateContent([
+      { inlineData: { mimeType, data: base64Image } }, // mimeType を動的に取得
+      { text: prompt },
+    ]);
+
+    const responseText = result.response.text();
+    return c.json({ result: responseText }, 200);
+  } catch (error) {
+    console.error("Error processing request:", error);
+    return c.json({ error: "Internal Server Error" }, 500);
   }
-
-  console.log("Raw text from Gemini:", rawText);
-  const formattedSetlist = parseSetlistText(rawText);
-  console.log("Formatted setlist:", formattedSetlist);
-
-  
 });
-
 
 export const GET = handle(app);
 export const POST = handle(app);

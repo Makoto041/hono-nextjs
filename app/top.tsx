@@ -16,6 +16,30 @@ export default function Home() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [resultMsg, setResultMsg] = useState<string>("");
+  const [response, setResponse] = useState(null);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setImageFile(event.target.files[0]);
+    }
+  };
+  const handleUpload = async () => {
+    if (!imageFile) {
+      alert("ファイルを選択してください");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", imageFile);
+
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+    setResponse(data);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,18 +51,15 @@ export default function Home() {
     const formData = new FormData();
     formData.append("playlistName", name);
     formData.append("inputType", inputType);
-    if (inputType === "text") {
-      formData.append("setlistText", setlistText);
-    } else if (inputType === "image" && imageFile) {
-      formData.append("image", imageFile);
+    if (inputType === "image" && imageFile) {
+      formData.append("file", imageFile);
     }
 
     try {
       // エンドポイントは "/api/upload" 固定
-      const response = await axios.post("/api/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const response = await axios.post("/api/upload", formData);
       const resData = response.data as ApiResponse;
+      console.log("レスポンスデータ:", resData);
       setResultMsg(
         resData.playlistId
           ? `プレイリスト作成成功！ID: ${resData.playlistId}`
@@ -108,58 +129,16 @@ export default function Home() {
               <input
                 type="file"
                 accept="image/*"
-                onChange={(e) => {
-                  if (e.target.files) {
-                    setImageFile(e.target.files[0]);
-                  }
-                }}
+                onChange={handleFileChange}
                 className="w-full p-2 bg-gray-700 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
           )}
-          <button
-            type="submit"
-            className="w-full py-3 bg-green-500 hover:bg-green-600 transition-colors font-semibold rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-            disabled={loading}
-          >
-            {loading ? "処理中..." : "プレイリスト作成"}
-          </button>
+          <button onClick={handleUpload}>アップロード</button>
         </form>
+        {response && <pre>{JSON.stringify(response, null, 2)}</pre>}
         {resultMsg && <p className="mt-6 text-center text-lg">{resultMsg}</p>}
       </div>
     </div>
   );
 };
-
-
-
-// export default function Hello() {
-//   const [message, setMessage] = useState<string>()
-
-//   useEffect(() => {
-//     const fetchData = async () => {
-//       const res = await fetch('/api/hello')
-//       const {message} = await res.json()
-//       setMessage(message)
-//     }
-//     fetchData()
-//   }, [])
-
-//   return <section className="w-full py-12 md:py-24 lg:py-32">
-//           <div className="flex flex-col items-center justify-center px-4 md:px-6 space-y-4">
-//             <p className="max-w-[700px] text-gray-500 md:text-xl dark:text-gray-400">
-//               Here is the response to your API call:
-//             </p>
-//             <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl/none">
-//               {!message ? "Loading..." : message}        
-//             </h1>
-//             <Link
-//           href="/api/hello"
-//           className="inline-flex h-9 items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-gray-50 shadow transition-colors hover:bg-gray-900/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-950 disabled:pointer-events-none disabled:opacity-50 "
-//           prefetch={false}
-//         >
-//           View the API call
-//         </Link>
-//           </div>
-//         </section>
-// }
