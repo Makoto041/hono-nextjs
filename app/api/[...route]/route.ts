@@ -178,17 +178,16 @@ app.post("/upload", async (c) => {
     // Gemini API へ送信するプロンプト
     const prompt = `
     画像のセットリストをOCRで解析し、以下のJSON形式で出力してください。
-
+    もし認識できなかった場合は null を返してください。
+    【出力例】
     {
       "tracks": [
         {
-          "trackName": "楽曲名",
           "artistNames": ["アーティストA", "アーティストB"]
+          "trackName": "楽曲名",
         }
       ]
     }
-
-    もし認識できなかった場合は null を返してください。
     `;
 
     // Gemini API へリクエスト

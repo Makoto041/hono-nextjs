@@ -1,13 +1,7 @@
-'use client'
-import Link from 'next/link'
-import { useEffect, useState } from 'react'
+"use client";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import axios from "axios";
-
-interface ApiResponse {
-  playlistId?: string;
-  message: string;
-}
-
 
 export default function Home() {
   const [playlistName, setPlaylistName] = useState<string>("");
@@ -45,7 +39,6 @@ export default function Home() {
     e.preventDefault();
     setLoading(true);
 
-    // プレイリスト名が未入力の場合、今日の日付＋Setlist をデフォルトに設定
     const name =
       playlistName || `${new Date().toISOString().slice(0, 10)} Setlist`;
     const formData = new FormData();
@@ -56,15 +49,40 @@ export default function Home() {
     }
 
     try {
-      // エンドポイントは "/api/upload" 固定
       const response = await axios.post("/api/upload", formData);
-      const resData = response.data as ApiResponse;
+      const resData = response.data as { result: string };
+
       console.log("レスポンスデータ:", resData);
-      setResultMsg(
-        resData.playlistId
-          ? `プレイリスト作成成功！ID: ${resData.playlistId}`
-          : resData.message
-      );
+      console.log("resData.result:", resData.result);
+
+      let parsedData;
+      try {
+        parsedData = JSON.parse(resData.result.replace(/```json\n|\n```/g, ""));
+      } catch (error) {
+        console.error("JSONパースエラー:", error);
+        setResultMsg("レスポンスの解析に失敗しました。");
+        return;
+      }
+
+      console.log("パース後のデータ:", parsedData);
+
+      if (parsedData.tracks && parsedData.tracks.length > 0) {
+        const formattedTracks = parsedData.tracks
+          .map(
+            (track: { trackName: String; artistNames: String[] }) =>
+              `${track.trackName} - ${track.artistNames.join(", ")}`
+          )
+          .join("\n");
+
+        console.log("setResultMsg に設定するデータ:", formattedTracks);
+        setResultMsg(`プレイリスト読み取り成功:\n${formattedTracks}`);
+      } else {
+        console.log(
+          "setResultMsg にエラーメッセージを設定:",
+          parsedData.message
+        );
+        setResultMsg(parsedData.message);
+      }
     } catch (error: any) {
       console.error("送信エラー:", error);
       setResultMsg(error.response?.data?.message || "エラーが発生しました。");
@@ -78,7 +96,6 @@ export default function Home() {
         <h1 className="text-4xl font-bold mb-6 text-green-500">
           Spotify Setlist Generator
         </h1>
-        {/* Spotifyログイン用リンク */}
         <div className="mb-6">
           <a
             href="/api/auth"
@@ -141,4 +158,4 @@ export default function Home() {
       </div>
     </div>
   );
-};
+}
