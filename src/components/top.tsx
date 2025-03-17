@@ -10,7 +10,36 @@ export default function Home() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [resultMsg, setResultMsg] = useState<string>("");
-  const [response, setResponse] = useState(null);
+  const [response, setResponse] = useState<{ data: { result?: string } } | null>(null);
+  const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get("code");
+    const storedToken = localStorage.getItem("spotifyAccessToken");
+    if (storedToken) {
+      setSpotifyToken(storedToken);
+    }
+
+    if (code) {
+      console.log("Spotify認証コードを取得:", code);
+
+      axios
+        .post("/api/callback", { code })
+        .then((res) => {
+          console.log("Spotifyアクセストークン取得成功:", res.data);
+          localStorage.setItem("spotifyAccessToken", res.data.access_token);
+          setSpotifyToken(res.data.access_token);
+
+          // URL から `code` を削除してリロード防止
+          window.history.replaceState({}, document.title, "/");
+        })
+        .catch((error) => {
+          console.error("Spotify認証エラー:", error);
+          alert("Spotify認証に失敗しました。再度ログインしてください。");
+        });
+    }
+  }, []);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -23,16 +52,34 @@ export default function Home() {
       return;
     }
 
+    if (!spotifyToken) {
+      alert("Spotifyの再ログインが必要です");
+      window.location.href = "/api/auth";
+      return;
+    }
+
     const formData = new FormData();
     formData.append("file", imageFile);
 
+    try {
     const res = await fetch("/api/upload", {
       method: "POST",
       body: formData,
+      headers: {
+        Authorization: `Bearer ${spotifyToken}`,
+      },
     });
 
-    const data = await res.json();
-    setResponse(data);
+      if (!res.ok) {
+        throw new Error(`アップロードに失敗しました: ${res.statusText}`);
+      }
+
+      const data = await res.json();
+      setResponse(data);
+    } catch (error) {
+      console.error("アップロードエラー:", error);
+      setResultMsg("アップロードに失敗しました。");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -48,9 +95,31 @@ export default function Home() {
       formData.append("file", imageFile);
     }
 
+    if (!spotifyToken) {
+      alert("Spotifyの再ログインが必要です");
+      window.location.href = "/api/auth";
+      return;
+    }
+
     try {
-      const response = await axios.post("/api/upload", formData);
-      const resData = response.data as { result: string };
+      await axios.post("/api/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+      Authorization: `Bearer ${spotifyToken}`,
+        },
+      });
+
+      if (!response) {
+        console.error("Response is null");
+        setResultMsg("レスポンスが取得できませんでした。");
+        return;
+      }
+
+      const resData: { result?: string } = response.data;
+
+      if (!resData || typeof resData.result !== "string") {
+        throw new Error("無効なレスポンスデータ");
+      }
 
       console.log("レスポンスデータ:", resData);
       console.log("resData.result:", resData.result);
@@ -67,26 +136,40 @@ export default function Home() {
       console.log("パース後のデータ:", parsedData);
 
       if (parsedData.tracks && parsedData.tracks.length > 0) {
-        const formattedTracks = parsedData.tracks
-          .map(
-            (track: { trackName: String; artistNames: String[] }) =>
-              `${track.trackName} - ${track.artistNames.join(", ")}`
-          )
-          .join("\n");
+        const trackURIs = parsedData.tracks.map(
+          (track: { trackURI: string }) => track.trackURI
+        );
 
-        console.log("setResultMsg に設定するデータ:", formattedTracks);
-        setResultMsg(`プレイリスト読み取り成功:\n${formattedTracks}`);
+        const spotifyResponse = await axios.post("/api/create-playlist", {
+          playlistName: name,
+          trackURIs,
+        });
+
+        if (spotifyResponse.data.success) {
+          setResultMsg(
+            `プレイリスト作成成功! 🎵\nSpotifyで確認: ${spotifyResponse.data.playlistUrl}`
+          );
+        } else {
+          setResultMsg("プレイリスト作成に失敗しました。");
+        }
       } else {
         console.log(
           "setResultMsg にエラーメッセージを設定:",
           parsedData.message
         );
-        setResultMsg(parsedData.message);
+        setResultMsg(parsedData.message || "トラックが見つかりませんでした。");
       }
     } catch (error: any) {
       console.error("送信エラー:", error);
+      if (error.response?.status === 401) {
+        alert("Spotifyの認証が切れました。再ログインしてください。");
+        localStorage.removeItem("spotifyAccessToken");
+        window.location.href = "/api/auth";
+        return;
+      }
       setResultMsg(error.response?.data?.message || "エラーが発生しました。");
     }
+
     setLoading(false);
   };
 
