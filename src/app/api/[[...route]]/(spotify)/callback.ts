@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import axios from "axios";
-import { handle } from "hono/vercel";
 import { getCookie } from "hono/cookie";
 import dotenv from "dotenv";
 
