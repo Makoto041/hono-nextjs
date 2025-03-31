@@ -1,11 +1,15 @@
 import { Hono } from "hono";
 import axios from "axios";
-import { getCookie } from "hono/cookie";
+import { getCookie, setCookie } from "hono/cookie";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 const app = new Hono();
+
+// Spotify認証コールバック用エンドポイント
+// 認証コードを受け取り、アクセストークンを取得する
+// 認証コードを受け取るためのエンドポイント
 
 app.get("/", async (c) => {
   // URLクエリから認証コードを取得
@@ -33,15 +37,24 @@ app.get("/", async (c) => {
   }
 
   try {
-    const token = await getToken(code, storedCodeVerifier);
-    return c.json(token);
-  } catch (error: any) {
-    console.error(
-      "Spotifyトークン取得エラー:",
-      error.response ? error.response.data : error.message
-    );
-    return c.json({ error: "トークン取得に失敗しました" }, 500);
-  }
+  const token = await getToken(code, storedCodeVerifier);
+
+  // ここでトークンをクッキー保存する処理
+    setCookie(c, "access_token", token.access_token, {
+      path: "/",
+      secure: false, // TODO : 本番環境では true にすること
+      sameSite: "Lax",
+      httpOnly: true,
+    });
+  // メインページ（トップページ）にリダイレクトする
+  return c.redirect("/");
+} catch (error: any) {
+  console.error(
+    "Spotifyトークン取得エラー:",
+    error.response ? error.response.data : error.message
+  );
+  return c.json({ error: "トークン取得に失敗しました" }, 500);
+}
 });
 
 async function getToken(code: string, code_verifier: string) {
