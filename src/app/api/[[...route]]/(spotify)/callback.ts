@@ -42,7 +42,7 @@ app.get("/", async (c) => {
   // ここでトークンをクッキー保存する処理
     setCookie(c, "access_token", token.access_token, {
       path: "/",
-      secure: false, // TODO : 本番環境では true にすること
+      secure: true, // TODO : 本番環境では true にすること
       sameSite: "Lax",
       httpOnly: true,
     });
