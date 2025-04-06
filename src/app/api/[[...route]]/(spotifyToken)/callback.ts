@@ -47,7 +47,7 @@ app.get("/", async (c) => {
       httpOnly: true,
     });
   // メインページ（トップページ）にリダイレクトする
-  return c.redirect("/");
+  return c.redirect("/search");
 } catch (error: any) {
   console.error(
     "Spotifyトークン取得エラー:",

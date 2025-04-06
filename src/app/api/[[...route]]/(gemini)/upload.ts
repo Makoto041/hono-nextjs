@@ -5,7 +5,7 @@ import {
   createSpotifyPlaylist,
   addTracksToPlaylist,
   searchSpotifyTrack,
-} from "../(spotify)/_spotify";
+} from "../(spotifyToken)/_spotify";
 
 const upload = new Hono();
 

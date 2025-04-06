@@ -27,7 +27,7 @@ export default function PlaylistForm({ spotifyToken }: PlaylistFormProps) {
     }
     if (!spotifyToken) {
       alert("Spotifyの再ログインが必要です");
-      window.location.href = "/api/auth";
+      window.location.href = "/login";
       return;
     }
     const formData = new FormData();
@@ -43,7 +43,7 @@ export default function PlaylistForm({ spotifyToken }: PlaylistFormProps) {
       if (!res.ok) {
         throw new Error(`アップロードに失敗しました: ${res.statusText}`);
       }
-      const data = await res.json();
+      await res.json();
       setResultMsg("アップロードに成功しました。");
     } catch (error) {
       console.error("アップロードエラー:", error);
@@ -64,7 +64,7 @@ export default function PlaylistForm({ spotifyToken }: PlaylistFormProps) {
     }
     if (!spotifyToken) {
       alert("Spotifyの再ログインが必要です");
-      window.location.href = "/api/auth";
+      window.location.href = "/login";
       return;
     }
     try {
@@ -78,6 +78,7 @@ export default function PlaylistForm({ spotifyToken }: PlaylistFormProps) {
       if (!parsedData || typeof parsedData.result !== "string") {
         throw new Error("無効なレスポンスデータ");
       }
+
       let finalParsedData;
       try {
         finalParsedData = JSON.parse(
@@ -88,6 +89,7 @@ export default function PlaylistForm({ spotifyToken }: PlaylistFormProps) {
         setResultMsg("レスポンスの解析に失敗しました。");
         return;
       }
+
       if (finalParsedData.tracks && finalParsedData.tracks.length > 0) {
         const trackURIs = finalParsedData.tracks.map(
           (track: { trackURI: string }) => track.trackURI
@@ -113,7 +115,7 @@ export default function PlaylistForm({ spotifyToken }: PlaylistFormProps) {
       if (error.response?.status === 401) {
         alert("Spotifyの認証が切れました。再ログインしてください。");
         localStorage.removeItem("spotifyAccessToken");
-        window.location.href = "/api/auth";
+        window.location.href = "/login";
         return;
       }
       setResultMsg(error.response?.data?.message || "エラーが発生しました。");
@@ -130,7 +132,7 @@ export default function PlaylistForm({ spotifyToken }: PlaylistFormProps) {
           value={playlistName}
           onChange={(e) => setPlaylistName(e.target.value)}
           placeholder="（空欄の場合は日付＋Setlist）"
-          className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="w-full p-3 rounded bg-black border border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 text-green-500"
         />
       </div>
       <div>
@@ -138,7 +140,7 @@ export default function PlaylistForm({ spotifyToken }: PlaylistFormProps) {
         <select
           value={inputType}
           onChange={(e) => setInputType(e.target.value as "text" | "image")}
-          className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="w-full p-3 rounded bg-black border border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 text-green-500"
         >
           <option value="text">テキスト</option>
           <option value="image">画像</option>
@@ -153,7 +155,7 @@ export default function PlaylistForm({ spotifyToken }: PlaylistFormProps) {
             value={setlistText}
             onChange={(e) => setSetlistText(e.target.value)}
             placeholder={`例:\n1: STAY - Smile High, Antwaun Stanley\n2: In Touch - Daul, Charli Taft\n3: WE ARE - eill\n...`}
-            className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500 h-40"
+            className="w-full p-3 rounded bg-black border border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 h-40 text-green-500"
           ></textarea>
         </div>
       ) : (
@@ -163,15 +165,24 @@ export default function PlaylistForm({ spotifyToken }: PlaylistFormProps) {
             type="file"
             accept="image/*"
             onChange={handleFileChange}
-            className="w-full p-2 bg-gray-700 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full p-2 bg-black rounded border border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 text-green-500"
           />
         </div>
       )}
       <div className="flex gap-4">
-        <button type="button" onClick={handleUpload}>
+        <button
+          type="button"
+          onClick={handleUpload}
+          className="px-4 py-2 border border-green-500 text-green-500 rounded hover:bg-green-500 hover:text-black"
+        >
           アップロード
         </button>
-        <button type="submit">送信</button>
+        <button
+          type="submit"
+          className="px-4 py-2 border border-green-500 text-green-500 rounded hover:bg-green-500 hover:text-black"
+        >
+          送信
+        </button>
       </div>
       {resultMsg && <p className="mt-6 text-center text-lg">{resultMsg}</p>}
     </form>

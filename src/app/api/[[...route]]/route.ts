@@ -1,9 +1,9 @@
 // src/app/api/[[...route]]/route.ts
 import { Hono } from "hono";
 import { handle } from "hono/vercel";
-import auth from "./(spotify)/auth";
+import auth from "./(spotifyToken)/auth";
 import upload from "./(gemini)/upload";
-import callback from "./(spotify)/callback";
+import callback from "./(spotifyToken)/callback";
 
 const app = new Hono().basePath("/api");
 
