@@ -30,4 +30,3 @@ lerna-debug.log*
 
 # misc
 .DS_Store
-src/app/api/\[\[...route]]/(spotify)/_getToken.ts
