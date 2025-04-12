@@ -37,24 +37,24 @@ app.get("/", async (c) => {
   }
 
   try {
-  const token = await getToken(code, storedCodeVerifier);
+    const token = await getToken(code, storedCodeVerifier);
 
-  // ここでトークンをクッキー保存する処理
-    setCookie(c, "access_token", token.access_token, {
+    // ここでトークンをクッキー保存する処理
+    setCookie(c, "spotifyAccessToken", token.access_token, {
       path: "/",
       secure: true, // TODO : 本番環境では true にすること
       sameSite: "Lax",
       httpOnly: true,
     });
-  // メインページ（トップページ）にリダイレクトする
-  return c.redirect("/search");
-} catch (error: any) {
-  console.error(
-    "Spotifyトークン取得エラー:",
-    error.response ? error.response.data : error.message
-  );
-  return c.json({ error: "トークン取得に失敗しました" }, 500);
-}
+    // メインページ（トップページ）にリダイレクトする
+    return c.redirect("/search");
+  } catch (error: any) {
+    console.error(
+      "Spotifyトークン取得エラー:",
+      error.response ? error.response.data : error.message
+    );
+    return c.json({ error: "トークン取得に失敗しました" }, 500);
+  }
 });
 
 async function getToken(code: string, code_verifier: string) {
