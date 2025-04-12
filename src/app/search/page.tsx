@@ -6,19 +6,29 @@ export default function SearchPage() {
   const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("spotifyAccessToken");
-    // トークンがなければログインページへ
-    if (!storedToken) {
-      window.location.href = "/login";
-    } else {
-      setSpotifyToken(storedToken);
-    }
+    const fetchTokenFromBackend = async () => {
+      const res = await fetch("/api/getToken");
+      if (res.ok) {
+        const data = await res.json();
+        const token = data.spotifyAccessToken;
+        if (token) {
+          localStorage.setItem("spotifyAccessToken", token);
+          setSpotifyToken(token);
+        } else {
+          window.location.href = "/login";
+        }
+      } else {
+        window.location.href = "/login";
+      }
+    };
+
+    fetchTokenFromBackend();
   }, []);
 
   return (
     <div className="min-h-screen bg-black text-green-500 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-2xl bg-black p-6 rounded-lg shadow-xl">
-        <h1 className="text-4xl font-bold mb-6">Spotify Setlist Generator</h1>
+        <h1 className="text-4xl font-bold mb-6">Setlistify</h1>
         {/* 検索フォーム */}
         <PlaylistForm spotifyToken={spotifyToken} />
 
