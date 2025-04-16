@@ -9,6 +9,7 @@ import {
 
 const upload = new Hono();
 
+// upload.post("/", async (c) => {
 upload.post("/", async (c) => {
   const formData = await c.req.formData();
   const fileField = formData.get("file");
@@ -27,7 +28,11 @@ upload.post("/", async (c) => {
     prompt
   );
 
-  if (!responseJson.tracks || responseJson.tracks.length === 0) {
+  if (
+    !responseJson ||
+    !Array.isArray(responseJson) ||
+    responseJson.length === 0
+  ) {
     return c.json({ error: "No tracks found" }, 400);
   }
 
@@ -35,20 +40,36 @@ upload.post("/", async (c) => {
   if (!spotifyToken) {
     return c.json({ error: "Spotify access token missing" }, 401);
   }
+  // Spotifyのユーザー情報を取得して、ユーザーIDを抽出する
+  const userResponse = await fetch("https://api.spotify.com/v1/me", {
+    headers: {
+      Authorization: `Bearer ${spotifyToken}`,
+      Accept: "application/json",
+    },
+  });
+  if (!userResponse.ok) {
+    return c.json(
+      { error: "Failed to fetch Spotify user info" },
+      userResponse.status
+    );
+  }
+  const userData = await userResponse.json();
+  const spotifyUserId = userData.id; // ここがユーザーID（例: "makoto123"）
 
+  // 取得したユーザーIDを使ってプレイリストを作成
   const playlistId = await createSpotifyPlaylist(
-    process.env.SPOTIFY_USER_ID!,
+    spotifyUserId,
     spotifyToken,
     "Generated Playlist"
   );
+  console.log("Playlist ID:", playlistId);
 
   const trackUris = await Promise.all(
-    responseJson.tracks.map(
-      async (track: { trackName: string; artistNames: string[] }) => {
-        const query = `${track.trackName} ${track.artistNames.join(" ")}`;
-        return await searchSpotifyTrack(query, spotifyToken);
-      }
-    )
+    responseJson.map(async (track: { title: string; artist: string }) => {
+      // ここで、titleとartistを連結してクエリ文字列を作成する
+      const query = `${track.title} ${track.artist}`;
+      return await searchSpotifyTrack(query, spotifyToken);
+    })
   );
 
   await addTracksToPlaylist(playlistId, trackUris, spotifyToken);
