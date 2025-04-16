@@ -50,9 +50,10 @@ upload.post("/", async (c) => {
   if (!userResponse.ok) {
     return c.json(
       { error: "Failed to fetch Spotify user info" },
-      { status: userResponse.status }
+      userResponse.status as any
     );
   }
+
   const userData = await userResponse.json();
   const spotifyUserId = userData.id; // ここがユーザーID（例: "makoto123"）
 
