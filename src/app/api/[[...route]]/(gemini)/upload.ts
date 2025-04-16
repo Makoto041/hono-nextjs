@@ -50,7 +50,7 @@ upload.post("/", async (c) => {
   if (!userResponse.ok) {
     return c.json(
       { error: "Failed to fetch Spotify user info" },
-      userResponse.status
+      { status: userResponse.status }
     );
   }
   const userData = await userResponse.json();
