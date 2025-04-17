@@ -7,7 +7,6 @@ import PlaylistForm from "@/components/playlistForm";
 /** 3 つの状態を持つ */
 type AuthState = "loading" | "ok" | "ng";
 
-
 export default function SearchPage() {
   const [auth, setAuth] = useState<AuthState>("loading");
   const router = useRouter();
@@ -34,9 +33,8 @@ export default function SearchPage() {
 
   /* auth === "ok" のときだけ描画 */
   return (
-    <div className="min-h-screen bg-black text-green-500 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-black text-green-500 flex items-center justify-center p-4 overflow-y-auto">
       <PlaylistForm />
     </div>
   );
 }
-
