@@ -1,6 +1,7 @@
 // src/app/api/[[...route]]/(gemini)/upload.ts
 import { Hono } from "hono";
 import { Buffer } from "buffer";
+import { ensureSpotifyToken, SpotifyEnv } from "@/lib/ensureSpotifyToken";
 import { analyzeImageWithGemini } from "./_gemini";
 import {
   createSpotifyPlaylist,
@@ -8,74 +9,75 @@ import {
   searchSpotifyTrack,
 } from "../(spotifyToken)/_spotify";
 
-const upload = new Hono();
+// 👇 Env を指定
+const upload = new Hono<SpotifyEnv>();
 
-// upload.post("/", async (c) => {
+/* 認証ミドルウェアを前段に */
+upload.use("*", ensureSpotifyToken);
+
+/* 変更 1: テキスト入力サポート + プレイリスト名取得 */
 upload.post("/", async (c) => {
   const formData = await c.req.formData();
-  const fileField = formData.get("file");
-  if (!(fileField instanceof File) || !fileField.type.startsWith("image/")) {
-    return c.json({ error: "Invalid file" }, 400);
+
+  /* ---- 入力形式を判定 ---- */
+  const inputType = formData.get("inputType"); // ←追加
+  const playlistName =
+    (formData.get("playlistName") as string | null) || "Generated Playlist_1";
+
+  let tracks: { title: string; artist: string }[] = [];
+
+  if (inputType === "text") {
+    /* テキストが送られてきた場合 */
+    const text = formData.get("setlistText") as string | null;
+    if (!text) return c.json({ error: "No text provided" }, 400);
+
+    // 行 → {title, artist} にパースする自前関数例
+    tracks = text
+      .split("\n")
+      .map((line) => line.split(" - "))
+      .filter((a) => a.length === 2)
+      .map(([title, artist]) => ({ title, artist }));
+  } else {
+    /* ---------- 画像の場合 (現状ロジック) ---------- */
+    const fileField = formData.get("file");
+    if (!(fileField instanceof File) || !fileField.type.startsWith("image/")) {
+      return c.json({ error: "Invalid file" }, 400);
+    }
+
+    const buffer = await fileField.arrayBuffer();
+    const base64Image = Buffer.from(buffer).toString("base64");
+    const prompt =
+      "画像のセットリストをOCRで解析し、JSON形式で出力してください。";
+
+    tracks = await analyzeImageWithGemini(base64Image, fileField.name, prompt);
+    if (!Array.isArray(tracks) || tracks.length === 0) {
+      return c.json({ error: "No tracks found" }, 400);
+    }
   }
 
-  const buffer = await fileField.arrayBuffer();
-  const base64Image = Buffer.from(buffer).toString("base64");
+  /* ---- Spotify 処理は共通 ---- */
+  const spotifyToken = c.get("spotifyAccessToken") as string;
 
-  const prompt = `画像のセットリストをOCRで解析し、JSON形式で出力してください。`;
-
-  const responseJson = await analyzeImageWithGemini(
-    base64Image,
-    fileField.name,
-    prompt
-  );
-
-  if (
-    !responseJson ||
-    !Array.isArray(responseJson) ||
-    responseJson.length === 0
-  ) {
-    return c.json({ error: "No tracks found" }, 400);
-  }
-
-  const spotifyToken = c.req.header("Authorization")?.replace("Bearer ", "");
-  if (!spotifyToken) {
-    return c.json({ error: "Spotify access token missing" }, 401);
-  }
-  // Spotifyのユーザー情報を取得して、ユーザーIDを抽出する
-  const userResponse = await fetch("https://api.spotify.com/v1/me", {
-    headers: {
-      Authorization: `Bearer ${spotifyToken}`,
-      Accept: "application/json",
-    },
+  const userMe = await fetch("https://api.spotify.com/v1/me", {
+    headers: { Authorization: `Bearer ${spotifyToken}` },
   });
-  if (!userResponse.ok) {
-    return c.json(
-      { error: "Failed to fetch Spotify user info" },
-      userResponse.status as any
-    );
-  }
+  if (!userMe.ok)
+    return c.json({ error: "Failed to fetch user" }, userMe.status as any);
 
-  const userData = await userResponse.json();
-  const spotifyUserId = userData.id; // ここがユーザーID（例: "makoto123"）
-
-  // 取得したユーザーIDを使ってプレイリストを作成
+  const userId = (await userMe.json()).id;
   const playlistId = await createSpotifyPlaylist(
-    spotifyUserId,
+    userId,
     spotifyToken,
-    "Generated Playlist"
+    playlistName
   );
-  console.log("Playlist ID:", playlistId);
 
   const trackUris = await Promise.all(
-    responseJson.map(async (track: { title: string; artist: string }) => {
-      // ここで、titleとartistを連結してクエリ文字列を作成する
-      const query = `${track.title} ${track.artist}`;
-      return await searchSpotifyTrack(query, spotifyToken);
-    })
+    tracks.map((t) =>
+      searchSpotifyTrack(`${t.title} ${t.artist}`, spotifyToken)
+    )
   );
 
   await addTracksToPlaylist(playlistId, trackUris, spotifyToken);
-
   return c.json({ message: "Playlist created", playlistId });
 });
 
