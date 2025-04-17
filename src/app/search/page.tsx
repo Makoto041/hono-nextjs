@@ -1,3 +1,4 @@
+// src/app/search/page.tsx
 "use client";
 import React, { useEffect, useState } from "react";
 import PlaylistForm from "../../components/playlistForm";

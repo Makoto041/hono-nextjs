@@ -1,3 +1,4 @@
+// src/app/login/page.tsx
 "use client";
 import React from "react";
 import SpotifyAuth from "../../components/spotifyAuth";

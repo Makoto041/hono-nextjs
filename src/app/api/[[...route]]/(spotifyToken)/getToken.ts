@@ -1,3 +1,4 @@
+// src/app/api/[[...route]]/(spotifyToken)/getToken.ts
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 

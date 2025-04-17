@@ -1,3 +1,4 @@
+// src/app/api/[[...route]]/(spotifyToken)/auth.ts
 import { Hono } from "hono"; // Honoフレームワークをインポート
 import { setCookie, getCookie } from "hono/cookie"; // Cookieの操作に必要な関数をインポート
 import crypto from "crypto"; // 暗号化とランダム値生成のためのモジュール

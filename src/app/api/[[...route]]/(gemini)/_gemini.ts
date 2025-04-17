@@ -1,3 +1,4 @@
+ // src/app/api/[[...route]]/(gemini)/_gemini.ts
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import mime from "mime-types";
 import { Buffer } from "buffer";
