@@ -1,74 +1,88 @@
 // src/app/login/page.tsx
 "use client";
 import React from "react";
-import SpotifyAuth from "../../components/spotifyAuth";
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
-      <div className="relative mb-8" style={{ width: 350, height: 350 }}>
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center overflow-hidden">
+      {/* 背景円 */}
+      <div className="absolute w-[40rem] h-[40rem] rounded-full bg-green-700/20 blur-3xl animate-blob" />
+
+      {/* アイコン＋タイトル */}
+      <div className="flex flex-col items-center gap-4 animate-drop">
+        {/* 音符アイコン */}
         <svg
-          version="1.1"
-          width="350"
-          height="350"
-          viewBox="0 0 350 350"
-          xmlns="http://www.w3.org/2000/svg"
+          width="140"
+          height="140"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-green-500 drop-shadow-xl"
         >
-          {/* 背景 */}
-          <rect width="350" height="350" fill="#000000" />
-
-          {/* 円で全体を囲む */}
-          <circle
-            cx="175"
-            cy="175"
-            r="160"
-            fill="none"
-            stroke="#1DB954"
-            strokeWidth="6"
-          />
-
-          {/* 波形をイメージしたライン群 */}
-          <g
-            transform="translate(175, 125)"
-            stroke="#1DB954"
-            strokeWidth="8"
-            strokeLinecap="round"
-          >
-            {/* 左半分 */}
-            <line x1="-70" y1="0" x2="-70" y2="-25" />
-            <line x1="-52.5" y1="0" x2="-52.5" y2="-50" />
-            <line x1="-35" y1="0" x2="-35" y2="-75" />
-            <line x1="-17.5" y1="0" x2="-17.5" y2="-50" />
-            <line x1="0" y1="0" x2="0" y2="-25" />
-            {/* 右半分 */}
-            <line x1="17.5" y1="0" x2="17.5" y2="-50" />
-            <line x1="35" y1="0" x2="35" y2="-75" />
-            <line x1="52.5" y1="0" x2="52.5" y2="-50" />
-            <line x1="70" y1="0" x2="70" y2="-25" />
-          </g>
-
-          {/* サイト名 */}
-          <text
-            x="50%"
-            y="180"
-            fill="#1DB954"
-            fontSize="32"
-            fontWeight="bold"
-            fontFamily="Arial, sans-serif"
-            textAnchor="middle"
-          >
-            Setlistify
-          </text>
+          <path d="M9 18V5l12-2v13" />
+          <circle cx="6" cy="18" r="3" />
+          <circle cx="18" cy="16" r="3" />
         </svg>
 
-        {/* ログインボタンを円の下側に配置 */}
-        <div
-          className="absolute"
-          style={{ top: "230px", left: "50%", transform: "translateX(-50%)" }}
-        >
-          <SpotifyAuth />
-        </div>
+        <h1 className="text-4xl font-bold text-green-500 tracking-wider">
+          Setlistify
+        </h1>
       </div>
+
+      {/* ログインボタン */}
+      <a
+        href="/api/auth"
+        className="group mt-12 px-6 py-3 border border-green-500 text-green-500 rounded font-semibold opacity-0
+                   animate-fadeIn delay-[1.4s] transition
+                   hover:bg-green-500 hover:text-black
+                   relative overflow-hidden"
+      >
+        <span className="relative z-10">Spotifyでログイン</span>
+        {/* ホバーで右→左に走る光 */}
+        <span className="absolute inset-0 bg-white/40 translate-x-full group-hover:translate-x-0 transition-transform duration-300" />
+      </a>
+
+      {/* keyframes */}
+      <style jsx>{`
+        @keyframes blob {
+          0% {
+            transform: scale(0.6);
+          }
+          100% {
+            transform: scale(1.4);
+          }
+        }
+        @keyframes drop {
+          0% {
+            opacity: 0;
+            transform: translateY(-60px) scale(0.3);
+          }
+          60% {
+            opacity: 1;
+            transform: translateY(8px) scale(1.05);
+          }
+          100% {
+            transform: translateY(0) scale(1);
+          }
+        }
+        @keyframes fadeIn {
+          to {
+            opacity: 1;
+          }
+        }
+        .animate-blob {
+          animation: blob 8s ease-in-out infinite alternate;
+        }
+        .animate-drop {
+          animation: drop 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.8s forwards;
+        }
+      `}</style>
     </div>
   );
 }

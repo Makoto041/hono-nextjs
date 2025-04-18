@@ -9,12 +9,9 @@ import React, {
 } from "react";
 import axios from "axios";
 
-/* ───── API から受け取るトラック型 ───── */
 type Track = {
-  /* Gemini OCR */
   title: string;
   artist: string;
-  /* Spotify 検索結果（null → ヒットなし） */
   spotify: {
     uri: string | null;
     name: string | null;
@@ -24,41 +21,36 @@ type Track = {
 };
 
 export default function PlaylistForm() {
-  /* ───── フォーム入力 state ───── */
+  /* ------------- state ------------- */
   const [playlistName, setPlaylistName] = useState("");
   const [inputType, setInputType] = useState<"text" | "image">("image");
-  const [setlistText, setSetlistText] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
-
-  /* ───── 検索結果 state ───── */
+  const [manualTracks, setManualTracks] = useState([{ title: "", artist: "" }]);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [checked, setChecked] = useState<boolean[]>([]);
-
-  /* ───── UI state ───── */
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
-  /* ─────────────────────────────────────────
-   * Step‑1 : OCR + Spotify 検索 (/api/search)
-   * ───────────────────────────────────────── */
+  /* -------- 検索 -------- */
   const handleSearch = async (e: FormEvent) => {
     e.preventDefault();
     setMsg("");
     setLoading(true);
-
     const fd = new FormData();
     fd.append("inputType", inputType);
+
     if (inputType === "image") {
-      if (!imageFile) {
-        alert("画像を選択してください");
-        setLoading(false);
-        return;
-      }
+      if (!imageFile) return alertStop();
       fd.append("file", imageFile);
     } else {
-      fd.append("setlistText", setlistText);
+      const payload = manualTracks
+        .filter((t) => t.title && t.artist)
+        .map((t) => `${t.title} - ${t.artist}`)
+        .join("\n");
+      if (!payload) return alertStop();
+      fd.append("setlistText", payload);
     }
 
     try {
@@ -66,28 +58,28 @@ export default function PlaylistForm() {
         headers: { "Content-Type": "multipart/form-data" },
         withCredentials: true,
       });
-      setTracks(res.data.tracks as Track[]);
-      setChecked((res.data.tracks as Track[]).map((t) => !!t.spotify.uri));
-    } catch (err: any) {
-      setMsg(err.response?.data?.error ?? "検索失敗");
+      const list = res.data.tracks as Track[];
+      setTracks(list);
+      setChecked(list.map((t) => !!t.spotify.uri));
+    } catch (e: any) {
+      setMsg(e.response?.data?.error ?? "検索失敗");
     } finally {
       setLoading(false);
     }
+
+    function alertStop() {
+      setLoading(false);
+      alert("入力を確認してください");
+    }
   };
 
-  /* ─────────────────────────────────────────
-   * Step‑2 : プレイリスト作成 (/api/create-playlist)
-   * ───────────────────────────────────────── */
+  /* -------- 作成 -------- */
   const handleCreate = async () => {
     const uris = tracks
       .filter((_, i) => checked[i])
       .map((t) => t.spotify.uri!)
       .filter(Boolean);
-
-    if (!uris.length) {
-      alert("最低 1 曲は選択してください");
-      return;
-    }
+    if (!uris.length) return alert("1曲以上選択してください");
 
     const name =
       playlistName || `${new Date().toISOString().slice(0, 10)} Setlist`;
@@ -99,209 +91,301 @@ export default function PlaylistForm() {
         { playlistName: name, uris },
         { withCredentials: true }
       );
-      setMsg(`🎉 プレイリスト作成成功！\n${res.data.playlistUrl}`);
-    } catch (err: any) {
-      setMsg(err.response?.data?.error ?? "プレイリスト作成失敗");
+      setMsg(`✅ 完了！\n${res.data.playlistUrl}`);
+    } catch (e: any) {
+      setMsg(e.response?.data?.error ?? "作成失敗");
     } finally {
       setLoading(false);
     }
   };
 
-  /* チェックボックス切替 */
-  const toggle = (idx: number) =>
-    setChecked((prev) => prev.map((v, i) => (i === idx ? !v : v)));
+  const resetAll = () => {
+    setTracks([]);
+    setChecked([]);
+    setPlaylistName("");
+    setImageFile(null);
+    setManualTracks([{ title: "", artist: "" }]);
+    setMsg("");
+    if (fileRef.current) fileRef.current.value = "";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
-  /* 画像ファイル名を title に表示 */
+  const toggle = (i: number) =>
+    setChecked((b) => b.map((v, idx) => (idx === i ? !v : v)));
+
   useEffect(() => {
-    if (fileInputRef.current && imageFile) {
-      fileInputRef.current.title = imageFile.name;
-    }
+    if (fileRef.current && imageFile) fileRef.current.title = imageFile.name;
   }, [imageFile]);
 
-  /* ─────────────────────────── */
+  /* ------------- render ------------- */
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-10">
-      {/* ────────── 入力フォーム ────────── */}
-      <form onSubmit={handleSearch} className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-4">
-          {/* プレイリスト名 */}
-          <div>
-            <label className="block font-medium mb-1">プレイリスト名</label>
-            <input
-              type="text"
-              value={playlistName}
-              onChange={(e) => setPlaylistName(e.target.value)}
-              placeholder="（空欄の場合は日付＋Setlist）"
-              className="w-full p-3 rounded bg-black border border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 text-green-500"
-            />
+    <div className="w-full max-w-7xl mx-auto relative">
+      {/* 背景ドット */}
+      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle,_rgba(32,32,32,0.6)_1px,_transparent_1px)] bg-[length:18px_18px]" />
+
+      {/* ヘッダ */}
+      {tracks.length > 0 && (
+        <header className="sticky top-0 z-10 bg-black/80 backdrop-blur px-4 py-3 border-b border-green-500 flex flex-wrap items-center gap-3">
+          {/* EQ アニメ */}
+          <div className="flex gap-[3px] mr-2">
+            <span className="w-1 h-4 bg-green-500 animate-eq1" />
+            <span className="w-1 h-4 bg-green-500 animate-eq2" />
+            <span className="w-1 h-4 bg-green-500 animate-eq3" />
           </div>
 
-          {/* 入力形式 */}
-          <div>
-            <label className="block font-medium mb-1">入力形式</label>
+          <input
+            value={playlistName}
+            onChange={(e) => setPlaylistName(e.target.value)}
+            placeholder="プレイリスト名"
+            className="flex-1 min-w-[180px] p-2 rounded bg-black border border-green-500 text-green-500 focus:outline-none"
+          />
+          <button
+            onClick={handleCreate}
+            disabled={!checked.some(Boolean) || loading}
+            className="px-6 py-2 bg-green-600 text-black font-semibold rounded disabled:opacity-40 transition hover:scale-105"
+          >
+            {loading ? "作成中…" : "✅ 作成"}
+          </button>
+          <button
+            onClick={resetAll}
+            className="px-4 py-2 text-green-400 hover:text-green-200 transition text-sm"
+          >
+            新規セットリスト
+          </button>
+          {msg && (
+            <pre className="w-full text-green-400 whitespace-pre-wrap">
+              {msg}
+            </pre>
+          )}
+        </header>
+      )}
+
+      {/* フォーム */}
+      {tracks.length === 0 && (
+        <form
+          onSubmit={handleSearch}
+          className="grid gap-8 md:grid-cols-2 p-8 animate-fade-in"
+        >
+          {/* 左 */}
+          <div className="space-y-4">
             <select
               value={inputType}
               onChange={(e) => setInputType(e.target.value as "text" | "image")}
-              className="w-full p-3 rounded bg-black border border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 text-green-500"
+              className="w-full p-3 rounded bg-black border border-green-500 text-green-500 focus:outline-none"
             >
-              <option value="text">テキスト</option>
-              <option value="image">画像</option>
+              <option value="text">テキスト入力</option>
+              <option value="image">画像アップロード</option>
             </select>
-          </div>
-        </div>
 
-        {/* テキスト or 画像入力 */}
-        {inputType === "text" ? (
-          <div>
-            <label className="block font-medium mb-1">
-              セットリスト（テキスト）
-            </label>
-            <textarea
-              value={setlistText}
-              onChange={(e) => setSetlistText(e.target.value)}
-              placeholder={`例:\n1: STAY - Smile High, Antwaun Stanley\n2: In Touch - Daul, Charli Taft\n3: WE ARE - eill`}
-              className="w-full h-32 p-3 rounded bg-black border border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 text-green-500"
-            />
-          </div>
-        ) : (
-          <div>
-            <label className="block font-medium mb-1">
-              セットリスト（画像）
-            </label>
-            {/* file: プレフィックスでボタン部分を緑系に統一 */}
-            <input
-              type="file"
-              accept="image/*"
-              ref={fileInputRef}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                if (e.target.files?.[0]) setImageFile(e.target.files[0]);
-              }}
-              className="w-full
-                         text-green-500 file:mr-4 file:py-2 file:px-4
-                         file:rounded file:border-0
-                         file:text-sm file:font-semibold
-                         file:bg-green-600 file:text-black
-                         hover:file:bg-green-500
-                         bg-black rounded border border-green-500
-                         focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          </div>
-        )}
-
-        {/* OCR + Spotify 検索実行 */}
-        <div className="md:col-span-2 flex justify-end">
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-6 py-2 border border-green-500 text-green-500 rounded hover:bg-green-500 hover:text-black disabled:opacity-50"
-          >
-            {loading ? "検索中…" : "OCR＋Spotify 検索"}
-          </button>
-        </div>
-      </form>
-
-      {/* ────────── 検索結果カード一覧 ────────── */}
-      {tracks.length > 0 && (
-        <div className="space-y-6">
-          <h2 className="text-2xl font-semibold">
-            Gemini OCR × Spotify 検索結果
-          </h2>
-
-          {/* グリッドカード (スマホ1列 / タブレット2列 / PC3列) */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {tracks.map((t, i) => (
-              <label
-                key={i}
-                className={`flex gap-3 p-4 rounded border
-                  ${
-                    checked[i]
-                      ? "border-green-500 bg-green-900/10"
-                      : "border-gray-600 opacity-70"
-                  }
-                  hover:border-green-400 cursor-pointer transition-colors`}
-              >
-                {/* チェックボックス */}
-                <input
-                  type="checkbox"
-                  checked={checked[i]}
-                  onChange={() => toggle(i)}
-                  className="shrink-0 h-6 w-6 accent-green-500 mt-1"
-                />
-
-                {/* ジャケット */}
-                {t.spotify.albumImage ? (
-                  <img
-                    src={t.spotify.albumImage}
-                    alt=""
-                    className="shrink-0 w-16 h-16 object-cover rounded"
-                  />
-                ) : (
-                  <div className="shrink-0 w-16 h-16 bg-gray-700 flex items-center justify-center text-[10px] rounded">
-                    no
-                    <br />
-                    img
-                  </div>
-                )}
-
-                {/* 詳細 */}
-                <div className="flex flex-col gap-3 overflow-hidden leading-snug">
-                  {/* OCR 行 */}
-                  <div>
-                    <p className="text-[11px] text-green-400 flex items-center gap-1 mb-1">
-                      📷 <span>OCR</span>
-                    </p>
-                    <p className="font-semibold text-base whitespace-normal">
-                      {t.title}
-                    </p>
-                    <p className="text-xs text-gray-300 whitespace-normal">
-                      {t.artist}
-                    </p>
-                  </div>
-
-                  {/* Spotify 行 */}
-                  <div>
-                    <p className="text-[11px] text-green-400 flex items-center gap-1 mb-1">
-                      🎧 <span>Spotify</span>
-                    </p>
-                    {t.spotify.uri ? (
-                      <>
-                        <p className="font-semibold text-base whitespace-normal">
-                          {t.spotify.name}
-                        </p>
-                        <p className="text-xs text-gray-300 whitespace-normal">
-                          {t.spotify.artist}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="italic text-sm text-red-400 whitespace-normal">
-                        見つかりません
-                      </p>
+            {inputType === "text" ? (
+              <div className="space-y-3">
+                {manualTracks.map((row, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <input
+                      placeholder="曲名"
+                      value={row.title}
+                      onChange={(e) =>
+                        setManualTracks((r) =>
+                          r.map((v, i) =>
+                            i === idx ? { ...v, title: e.target.value } : v
+                          )
+                        )
+                      }
+                      className="flex-1 p-2 rounded bg-black border border-green-500 text-green-500 focus:outline-none"
+                    />
+                    <input
+                      placeholder="アーティスト"
+                      value={row.artist}
+                      onChange={(e) =>
+                        setManualTracks((r) =>
+                          r.map((v, i) =>
+                            i === idx ? { ...v, artist: e.target.value } : v
+                          )
+                        )
+                      }
+                      className="flex-1 p-2 rounded bg-black border border-green-500 text-green-500 focus:outline-none"
+                    />
+                    {manualTracks.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setManualTracks((r) => r.filter((_, i) => i !== idx))
+                        }
+                        className="px-2 text-red-400 hover:text-red-200"
+                      >
+                        ✕
+                      </button>
                     )}
                   </div>
-                </div>
-              </label>
-            ))}
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setManualTracks((r) => [...r, { title: "", artist: "" }])
+                  }
+                  className="flex items-center gap-1 px-4 py-1 border border-green-500 text-green-500 rounded hover:bg-green-500 hover:text-black transition text-sm"
+                >
+                  ➕ 行を追加
+                </button>
+              </div>
+            ) : (
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileRef}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  e.target.files && setImageFile(e.target.files[0])
+                }
+                className="w-full text-green-500 file:mr-4 file:py-2 file:px-4
+                           file:rounded file:border-0 file:bg-green-600 file:text-black
+                           hover:file:bg-green-500 bg-black rounded border border-green-500 cursor-pointer"
+              />
+            )}
           </div>
 
-          {/* プレイリスト作成ボタン */}
-          <div className="flex justify-end">
+          {/* 右 */}
+          <div className="flex items-end justify-end">
             <button
-              onClick={handleCreate}
-              disabled={!checked.some(Boolean) || loading}
-              className="px-8 py-2 bg-green-600 text-black font-semibold rounded disabled:opacity-40"
+              type="submit"
+              disabled={loading}
+              className="px-10 py-3 border border-green-500 text-green-500 rounded hover:bg-green-500 hover:text-black disabled:opacity-50 transition hover:scale-105"
             >
-              {loading ? "作成中…" : "選択した曲でプレイリスト作成"}
+              {loading ? "検索中…" : "OCR＋Spotify 検索"}
             </button>
           </div>
-        </div>
+        </form>
       )}
 
-      {/* ────────── メッセージ ────────── */}
-      {msg && (
-        <pre className="whitespace-pre-wrap text-center text-green-400">
-          {msg}
-        </pre>
+      {/* カード */}
+      {tracks.length > 0 && (
+        <section className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3 animate-slide-up">
+          {tracks.map((t, i) => (
+            <label
+              key={i}
+              className={`flex gap-3 p-4 rounded border group
+                ${
+                  checked[i]
+                    ? "border-green-500 bg-green-900/10"
+                    : "border-gray-600 opacity-70"
+                }
+                hover:border-green-400 transition`}
+            >
+              <input
+                type="checkbox"
+                checked={checked[i]}
+                onChange={() => toggle(i)}
+                className="shrink-0 h-6 w-6 accent-green-500 mt-1"
+              />
+              {t.spotify.albumImage ? (
+                <img
+                  src={t.spotify.albumImage}
+                  alt=""
+                  className="shrink-0 w-16 h-16 object-cover rounded group-hover:scale-105 transition"
+                />
+              ) : (
+                <div className="shrink-0 w-16 h-16 bg-gray-700 flex items-center justify-center text-[10px] rounded">
+                  no
+                  <br />
+                  img
+                </div>
+              )}
+              <div className="flex flex-col gap-3 overflow-hidden leading-snug">
+                <div>
+                  <p className="text-[11px] text-green-400 flex items-center gap-1">
+                    📷 OCR
+                  </p>
+                  <p className="font-semibold">{t.title}</p>
+                  <p className="text-xs text-gray-300">{t.artist}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-green-400 flex items-center gap-1">
+                    🎧 Spotify
+                  </p>
+                  {t.spotify.uri ? (
+                    <>
+                      <p className="font-semibold">{t.spotify.name}</p>
+                      <p className="text-xs text-gray-300">
+                        {t.spotify.artist}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="italic text-sm text-red-400">
+                      見つかりません
+                    </p>
+                  )}
+                </div>
+              </div>
+            </label>
+          ))}
+        </section>
       )}
+
+      {/* keyframes */}
+      <style jsx>{`
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes slide-up {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes eq1 {
+          0%,
+          100% {
+            height: 4px;
+          }
+          50% {
+            height: 16px;
+          }
+        }
+        @keyframes eq2 {
+          0%,
+          100% {
+            height: 16px;
+          }
+          50% {
+            height: 4px;
+          }
+        }
+        @keyframes eq3 {
+          0%,
+          100% {
+            height: 10px;
+          }
+          50% {
+            height: 18px;
+          }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.6s ease forwards;
+        }
+        .animate-slide-up {
+          animation: slide-up 0.6s ease forwards;
+        }
+        .animate-eq1 {
+          animation: eq1 1s linear infinite;
+        }
+        .animate-eq2 {
+          animation: eq2 1s linear infinite 0.2s;
+        }
+        .animate-eq3 {
+          animation: eq3 1s linear infinite 0.4s;
+        }
+      `}</style>
     </div>
   );
 }
