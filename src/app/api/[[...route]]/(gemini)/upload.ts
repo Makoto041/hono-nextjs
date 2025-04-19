@@ -1,84 +1,82 @@
 // src/app/api/[[...route]]/(gemini)/upload.ts
-import { Hono } from "hono";
+//--------------------------------------------------
+import { Hono, MiddlewareHandler } from "hono";
 import { Buffer } from "buffer";
-import { ensureSpotifyToken, SpotifyEnv } from "@/lib/ensureSpotifyToken";
 import { analyzeImageWithGemini } from "./_gemini";
 import {
   createSpotifyPlaylist,
   addTracksToPlaylist,
   searchSpotifyTrack,
+  SpotifyTrackMeta,
 } from "../(spotifyToken)/_spotify";
+import { ensureSpotifyToken } from "@/lib/ensureSpotifyToken";
 
-// 👇 Env を指定
-const upload = new Hono<SpotifyEnv>();
+/* ===== Context で使う独自変数型 ===== */
+type CtxVars = { spotifyAccessToken: string };
 
-/* 認証ミドルウェアを前段に */
-upload.use("*", ensureSpotifyToken);
+/* ===== アプリ ===== */
+const app = new Hono<{ Variables: CtxVars }>();
 
-/* 変更 1: テキスト入力サポート + プレイリスト名取得 */
-upload.post("/", async (c) => {
-  const formData = await c.req.formData();
+/* トークン注入ミドルウェア（ensureSpotifyToken が c.set する想定） */
+app.use("*", ensureSpotifyToken as MiddlewareHandler<{ Variables: CtxVars }>);
 
-  /* ---- 入力形式を判定 ---- */
-  const inputType = formData.get("inputType"); // ←追加
-  const playlistName =
-    (formData.get("playlistName") as string | null) || "Generated Playlist_1";
-
-  let tracks: { title: string; artist: string }[] = [];
-
-  if (inputType === "text") {
-    /* テキストが送られてきた場合 */
-    const text = formData.get("setlistText") as string | null;
-    if (!text) return c.json({ error: "No text provided" }, 400);
-
-    // 行 → {title, artist} にパースする自前関数例
-    tracks = text
-      .split("\n")
-      .map((line) => line.split(" - "))
-      .filter((a) => a.length === 2)
-      .map(([title, artist]) => ({ title, artist }));
-  } else {
-    /* ---------- 画像の場合 (現状ロジック) ---------- */
-    const fileField = formData.get("file");
-    if (!(fileField instanceof File) || !fileField.type.startsWith("image/")) {
-      return c.json({ error: "Invalid file" }, 400);
-    }
-
-    const buffer = await fileField.arrayBuffer();
-    const base64Image = Buffer.from(buffer).toString("base64");
-    const prompt =
-      "画像のセットリストをOCRで解析し、JSON形式で出力してください。";
-
-    tracks = await analyzeImageWithGemini(base64Image, fileField.name, prompt);
-    if (!Array.isArray(tracks) || tracks.length === 0) {
-      return c.json({ error: "No tracks found" }, 400);
-    }
+/* ------------------------------------------------------------------
+ * POST /api/upload
+ * 画像 → OCR → Spotify 検索 → プレイリスト作成
+ * ------------------------------------------------------------------*/
+app.post("/", async (c) => {
+  /* ---- 1) 画像取得 ---- */
+  const form = await c.req.formData();
+  const file = form.get("file");
+  if (!(file instanceof File) || !file.type.startsWith("image/")) {
+    return c.json({ error: "Invalid file" }, 400);
   }
 
-  /* ---- Spotify 処理は共通 ---- */
-  const spotifyToken = c.get("spotifyAccessToken") as string;
+  /* ---- 2) OCR (Gemini) ---- */
+  const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+  const ocrTracks: { title: string; artist: string }[] =
+    await analyzeImageWithGemini(
+      base64,
+      file.name,
+      "画像のセットリストをOCRで解析し、JSON形式で出力してください。"
+    );
 
-  const userMe = await fetch("https://api.spotify.com/v1/me", {
+  if (!Array.isArray(ocrTracks) || ocrTracks.length === 0) {
+    return c.json({ error: "No tracks found" }, 400);
+  }
+
+  /* ---- 3) Spotify ユーザ情報取得 ---- */
+  const spotifyToken = c.get("spotifyAccessToken");
+  const meRes = await fetch("https://api.spotify.com/v1/me", {
     headers: { Authorization: `Bearer ${spotifyToken}` },
   });
-  if (!userMe.ok)
-    return c.json({ error: "Failed to fetch user" }, userMe.status as any);
+  if (!meRes.ok)
+    return c.json({ error: "Failed to fetch user" }, meRes.status as any);
+  const { id: userId } = await meRes.json();
 
-  const userId = (await userMe.json()).id;
+  /* ---- 4) プレイリスト作成 ---- */
   const playlistId = await createSpotifyPlaylist(
     userId,
     spotifyToken,
-    playlistName
+    "Generated Playlist"
   );
 
-  const trackUris = await Promise.all(
-    tracks.map((t) =>
-      searchSpotifyTrack(`${t.title} ${t.artist}`, spotifyToken)
-    )
+  /* ---- 5) 各曲検索 → 先頭候補で URI を決定 ---- */
+  const trackUris: (string | null)[] = await Promise.all(
+    ocrTracks.map(async (t) => {
+      const cands: SpotifyTrackMeta[] = await searchSpotifyTrack(
+        `${t.title} ${t.artist}`,
+        spotifyToken
+      );
+      const chosen = cands.find((c) => c.uri) ?? null;
+      return chosen?.uri ?? null;
+    })
   );
 
+  /* ---- 6) 追加 & 完了 ---- */
   await addTracksToPlaylist(playlistId, trackUris, spotifyToken);
+
   return c.json({ message: "Playlist created", playlistId });
 });
 
-export default upload;
+export default app;
