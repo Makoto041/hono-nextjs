@@ -1,15 +1,16 @@
 // src/app/api/[[...route]]/(spotifyToken)/_spotify.ts
 //--------------------------------------------------
-// Spotify API ヘルパー関数だけを切り出したユーティリティ
+// Spotify API を叩く共有ユーティリティ
 //--------------------------------------------------
 import axios from "axios";
 
-/* ===== 検索時に返すメタデータ型 ===== */
+/* ===== 楽曲メタデータ型 ===== */
 export type SpotifyTrackMeta = {
   uri: string | null;
   name: string | null;
   artist: string | null;
   albumImage: string | null;
+  preview: string | null; // ★ 追加
 };
 
 /* --------------------------------------------------
@@ -30,45 +31,28 @@ export async function createSpotifyPlaylist(
 }
 
 /* --------------------------------------------------
- * 楽曲検索（2 通りの戻り値）
- *   searchSpotifyTrack(q, token)          -> URI だけ
- *   searchSpotifyTrack(q, token, true)    -> メタデータ付き
+ * 楽曲検索（常に “最大 3 件” の候補配列を返す）
  * --------------------------------------------------*/
 export async function searchSpotifyTrack(
   query: string,
-  accessToken: string
-): Promise<string | null>;
-export async function searchSpotifyTrack(
-  query: string,
   accessToken: string,
-  withMeta: true
-): Promise<SpotifyTrackMeta | null>;
-export async function searchSpotifyTrack(
-  query: string,
-  accessToken: string,
-  withMeta = false
-): Promise<string | SpotifyTrackMeta | null> {
-  const res = await axios.get(
-    `https://api.spotify.com/v1/search?q=${encodeURIComponent(
-      query
-    )}&type=track&limit=1`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
+  limit = 3,
+  market = "JP" // ★ デフォルト JP
+): Promise<SpotifyTrackMeta[]> {
+  const url =
+    `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}` +
+    `&type=track&limit=${limit}&market=${market}`; // ★ 追加
+  const res = await axios.get(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
 
-  if (res.data.tracks.items.length === 0) return null;
-
-  const item = res.data.tracks.items[0];
-
-  /* メタデータが欲しいか URI だけかで分岐 */
-  if (withMeta) {
-    return {
-      uri: item.uri ?? null,
-      name: item.name ?? null,
-      artist: item.artists?.[0]?.name ?? null,
-      albumImage: item.album?.images?.[0]?.url ?? null,
-    };
-  }
-  return item.uri ?? null;
+  return res.data.tracks.items.map((it: any) => ({
+    uri: it.uri ?? null,
+    name: it.name ?? null,
+    artist: it.artists?.[0]?.name ?? null,
+    albumImage: it.album?.images?.[0]?.url ?? null,
+    preview: it.preview_url ?? null, // ★ ここ！
+  }));
 }
 
 /* --------------------------------------------------
@@ -79,7 +63,7 @@ export async function addTracksToPlaylist(
   trackUris: (string | null)[],
   accessToken: string
 ) {
-  const uris = trackUris.filter(Boolean); // null を除外
+  const uris = trackUris.filter(Boolean);
   if (!uris.length) return;
 
   await axios.post(

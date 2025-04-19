@@ -1,24 +1,23 @@
 // src/app/api/[[...route]]/(gemini)/search.ts
 import { Hono } from "hono";
 import { Buffer } from "buffer";
-import { ensureSpotifyToken, SpotifyEnv } from "@/lib/ensureSpotifyToken";
 import { analyzeImageWithGemini } from "./_gemini";
+import { ensureSpotifyToken, SpotifyEnv } from "@/lib/ensureSpotifyToken";
 import { searchSpotifyTrack } from "../(spotifyToken)/_spotify";
 
 type OcrTrack = { title: string; artist: string };
-type ReturnTrack = OcrTrack & {
-  spotify: {
-    uri: string | null;
-    name: string | null;
-    artist: string | null;
-    albumImage: string | null;
-  };
-};
 
-const search = new Hono<SpotifyEnv>();
-search.use("*", ensureSpotifyToken);
+const app = new Hono<SpotifyEnv>();
+app.use("*", ensureSpotifyToken);
 
-search.post("/", async (c) => {
+/* --------------------------------------------------
+ * POST /api/search
+ *    フロントから FormData を受け取り
+ *    1) OCR or テキスト → 曲リスト抽出
+ *    2) 各曲を Spotify で最大 3 件検索
+ *    3) [{ title, artist, spotify: SpotifyMeta[] }] を返す
+ * --------------------------------------------------*/
+app.post("/", async (c) => {
   const form = await c.req.formData();
   const inputType = form.get("inputType");
   let ocrTracks: OcrTrack[] = [];
@@ -46,22 +45,18 @@ search.post("/", async (c) => {
   if (!ocrTracks.length) return c.json({ error: "No tracks found" }, 400);
 
   const token = c.get("spotifyAccessToken") as string;
+  const result = [];
 
-  /* Spotify で 1 曲ずつ検索 */
-  const list: ReturnTrack[] = [];
   for (const t of ocrTracks) {
-    const hit = await searchSpotifyTrack(`${t.title} ${t.artist}`, token, true); // true=メタデータ取得
-    list.push({
-      ...t,
-      spotify: hit ?? {
-        uri: null,
-        name: null,
-        artist: null,
-        albumImage: null,
-      },
-    });
+    const spotifyCandidates = await searchSpotifyTrack(
+      `${t.title} ${t.artist}`,
+      token,
+      3
+    );
+    result.push({ ...t, spotify: spotifyCandidates });
   }
-  return c.json({ tracks: list });
+
+  return c.json({ tracks: result });
 });
 
-export default search;
+export default app;
