@@ -187,7 +187,9 @@ export default function PlaylistForm() {
               <circle cx="6" cy="18" r="3" />
               <circle cx="18" cy="16" r="3" />
             </svg>
+          <a href="/search">
             <span className="text-green-400 font-semibold">Setlistify</span>
+          </a>
           </div>
 
           <input
@@ -233,14 +235,16 @@ export default function PlaylistForm() {
         >
           {/* ロゴ */}
           <div className="flex justify-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-14 h-14 text-green-500"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M12 3v13.55A4 4 0 1 0 14 21V8h4V3h-6z" />
-            </svg>
+            <a href="/" className="cursor-pointer">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-14 h-14 text-green-500"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path d="M12 3v13.55A4 4 0 1 0 14 21V8h4V3h-6z" />
+              </svg>
+            </a>
           </div>
 
           {/* 入力種別 */}
