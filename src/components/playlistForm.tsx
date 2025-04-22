@@ -116,7 +116,24 @@ export default function PlaylistForm() {
       navigator.clipboard.writeText(data.playlistUrl);
       setToast("URL をコピーしました");
       setTimeout(() => setToast(""), 2500);
-      if (openOnCreate) window.open(data.playlistUrl, "_blank");
+      if (openOnCreate) {
+        const url = data.playlistUrl;
+        const isMobile = /Mobi|Android|iPhone|iPad/.test(navigator.userAgent);
+        if (isMobile) {
+          // extract playlist ID and build Spotify URI
+          const match = url.match(/playlist\/([A-Za-z0-9]+)/);
+          const playlistId = match ? match[1] : null;
+          const appUrl = playlistId ? `spotify:playlist:${playlistId}` : url;
+          // try opening in app
+          window.location.href = appUrl;
+          // fallback to browser after 1s
+          setTimeout(() => {
+            window.location.href = url;
+          }, 1000);
+        } else {
+          window.open(url, "_blank");
+        }
+      }
     } catch (err: any) {
       alert(err.response?.data?.error ?? "作成失敗");
     } finally {
@@ -240,7 +257,7 @@ export default function PlaylistForm() {
           {inputType === "text" ? (
             <div className="space-y-3">
               {manualTracks.map((row, idx) => (
-                <div key={idx} className="flex gap-2">
+                <div key={idx} className="flex flex-col sm:flex-row gap-2">
                   <input
                     placeholder="曲名"
                     value={row.title}
@@ -327,7 +344,10 @@ export default function PlaylistForm() {
             return (
               <div
                 key={i}
-                className={`p-4 rounded border ${
+                onClick={() =>
+                  setChecked((c) => c.map((v, idx) => (idx === i ? !v : v)))
+                }
+                className={`p-4 rounded cursor-pointer border ${
                   checked[i]
                     ? "border-green-500 bg-green-900/10"
                     : "border-gray-600 opacity-70"
@@ -341,6 +361,7 @@ export default function PlaylistForm() {
                     onChange={() =>
                       setChecked((c) => c.map((v, idx) => (idx === i ? !v : v)))
                     }
+                    onClick={(e) => e.stopPropagation()}
                     className="mt-1 h-6 w-6 accent-green-500"
                   />
 
@@ -363,7 +384,7 @@ export default function PlaylistForm() {
                     {/* ▶ / ⏸ */}
                     {cur?.preview && (
                       <button
-                        onClick={() => togglePreview(i)}
+                        onClick={(e) => { e.stopPropagation(); togglePreview(i); }}
                         className="absolute bottom-1 right-1 w-8 h-8 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center"
                       >
                         {playing?.i === i ? "⏸" : "▶"}
@@ -374,7 +395,8 @@ export default function PlaylistForm() {
                     {t.spotify.length > 1 && (
                       <>
                         <button
-                          onClick={() =>
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setSelIdx((a) =>
                               a.map((v, idx) =>
                                 idx === i
@@ -382,20 +404,21 @@ export default function PlaylistForm() {
                                     t.spotify.length
                                   : v
                               )
-                            )
-                          }
+                            );
+                          }}
                           className="absolute -left-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center"
                         >
                           ❮
                         </button>
                         <button
-                          onClick={() =>
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setSelIdx((a) =>
                               a.map((v, idx) =>
                                 idx === i ? (v + 1) % t.spotify.length : v
                               )
-                            )
-                          }
+                            );
+                          }}
                           className="absolute -right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center"
                         >
                           ❯

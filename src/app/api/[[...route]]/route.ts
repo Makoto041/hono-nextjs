@@ -1,22 +1,25 @@
 // src/app/api/[[...route]]/route.ts
+//----------------------------------
 import { Hono } from "hono";
 import { handle } from "hono/vercel";
+
+/* --- 各サブルート --- */
 import auth from "./(spotifyToken)/auth";
-import upload from "./(gemini)/upload";
 import callback from "./(spotifyToken)/callback";
 import getToken from "./(spotifyToken)/getToken";
+import createPlaylist from "./(spotifyToken)/create-playlist"; // ← ここ
+import upload from "./(gemini)/upload";
 import search from "./(gemini)/search";
-import create from "./(spotifyToken)/create-playlist";
 
+/* --- ルート定義 --- */
 const app = new Hono().basePath("/api");
 
-// ルートごとに個別にルーティング
-app.route("/upload", upload);
 app.route("/auth", auth);
 app.route("/callback", callback);
 app.route("/getToken", getToken);
+app.route("/create-playlist", createPlaylist); // ← 新ルート
+app.route("/upload", upload);
 app.route("/search", search);
-app.route("/create-playlist", create);
 
 export const GET = handle(app);
 export const POST = handle(app);
