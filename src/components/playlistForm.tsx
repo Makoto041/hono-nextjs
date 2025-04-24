@@ -187,9 +187,9 @@ export default function PlaylistForm() {
               <circle cx="6" cy="18" r="3" />
               <circle cx="18" cy="16" r="3" />
             </svg>
-          <a href="/search">
-            <span className="text-green-400 font-semibold">Setlistify</span>
-          </a>
+            <a href="/search">
+              <span className="text-green-400 font-semibold">Setlistify</span>
+            </a>
           </div>
 
           <input
@@ -223,6 +223,26 @@ export default function PlaylistForm() {
             >
               新規
             </button>
+          </div>
+
+          {/* Spotify Attribution */}
+          <div className="w-full mt-2 text-xs text-gray-400 flex items-center justify-center gap-1">
+            <img
+              src="https://storage.googleapis.com/pr-newsroom-wp/1/2018/11/Spotify_Logo_CMYK_Green.png"
+              alt="Spotify"
+              className="h-4"
+            />
+            <span>
+              Content and previews provided by{" "}
+              <a
+                href="https://www.spotify.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                Spotify
+              </a>
+            </span>
           </div>
         </header>
       )}
@@ -344,7 +364,8 @@ export default function PlaylistForm() {
       {tracks.length > 0 && (
         <section className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
           {tracks.map((t, i) => {
-            const cur = t.spotify[selIdx[i]];
+            const selected = selIdx[i];
+
             return (
               <div
                 key={i}
@@ -358,7 +379,7 @@ export default function PlaylistForm() {
                 }`}
               >
                 <div className="flex gap-3">
-                  {/* チェック */}
+                  {/* チェックボックス */}
                   <input
                     type="checkbox"
                     checked={checked[i]}
@@ -369,77 +390,82 @@ export default function PlaylistForm() {
                     className="mt-1 h-6 w-6 accent-green-500"
                   />
 
-                  {/* ジャケット ＋ ▼ UI */}
+                  {/* 候補画像＆ナビゲーション */}
                   <div className="relative">
-                    {cur?.albumImage ? (
-                      <img
-                        src={cur.albumImage}
-                        alt=""
-                        className="w-28 h-28 object-cover rounded"
-                      />
-                    ) : (
-                      <div className="w-28 h-28 bg-gray-700 text-[10px] flex items-center justify-center rounded">
-                        no
-                        <br />
-                        img
-                      </div>
-                    )}
+                    {t.spotify.map((cand, idx) => {
+                      if (idx !== selected) return null;
+                      const id = cand.uri?.split(":")[2];
+                      const url = id
+                        ? `https://open.spotify.com/track/${id}`
+                        : undefined;
+                      return url ? (
+                        <a
+                          key={idx}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <img
+                            src={cand.albumImage!}
+                            alt={cand.name!}
+                            className="w-28 h-28 object-cover rounded"
+                          />
+                        </a>
+                      ) : (
+                        <img
+                          key={idx}
+                          src={cand.albumImage!}
+                          alt={cand.name!}
+                          className="w-28 h-28 object-cover rounded"
+                        />
+                      );
+                    })}
 
-                    {/* ▶ / ⏸ */}
-                    {cur?.preview && (
+                    {/* 前へ */}
+                    {t.spotify.length > 1 && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); togglePreview(i); }}
-                        className="absolute bottom-1 right-1 w-8 h-8 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelIdx((arr) =>
+                            arr.map((v, idx2) =>
+                              idx2 === i
+                                ? (v - 1 + t.spotify.length) % t.spotify.length
+                                : v
+                            )
+                          );
+                        }}
+                        className="absolute -left-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center"
                       >
-                        {playing?.i === i ? "⏸" : "▶"}
+                        ❮
                       </button>
                     )}
 
-                    {/* ← → */}
+                    {/* 次へ */}
                     {t.spotify.length > 1 && (
-                      <>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelIdx((a) =>
-                              a.map((v, idx) =>
-                                idx === i
-                                  ? (v - 1 + t.spotify.length) %
-                                    t.spotify.length
-                                  : v
-                              )
-                            );
-                          }}
-                          className="absolute -left-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center"
-                        >
-                          ❮
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelIdx((a) =>
-                              a.map((v, idx) =>
-                                idx === i ? (v + 1) % t.spotify.length : v
-                              )
-                            );
-                          }}
-                          className="absolute -right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center"
-                        >
-                          ❯
-                        </button>
-                      </>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelIdx((arr) =>
+                            arr.map((v, idx2) =>
+                              idx2 === i ? (v + 1) % t.spotify.length : v
+                            )
+                          );
+                        }}
+                        className="absolute -right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center"
+                      >
+                        ❯
+                      </button>
                     )}
 
-                    {/* ●●● */}
+                    {/* ドットインジケーター */}
                     {t.spotify.length > 1 && (
                       <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex gap-1">
                         {t.spotify.map((_, n) => (
                           <span
                             key={n}
                             className={`w-2 h-2 rounded-full ${
-                              selIdx[i] === n
-                                ? "bg-green-500"
-                                : "bg-gray-500/60"
+                              selected === n ? "bg-green-500" : "bg-gray-500/60"
                             }`}
                           />
                         ))}
@@ -447,23 +473,43 @@ export default function PlaylistForm() {
                     )}
                   </div>
 
-                  {/* OCR / Spotify 詳細 */}
+                  {/* OCR結果 ＋ 候補表示 */}
                   <div className="flex-1 overflow-hidden text-sm">
+                    {/* OCR結果 */}
                     <p className="text-green-400 text-[11px]">📷 OCR</p>
                     <p className="font-semibold">{t.title}</p>
                     <p className="text-gray-300">{t.artist}</p>
 
+                    {/* 候補名 */}
                     <p className="mt-2 text-green-400 text-[11px]">
-                      🎧 候補 {selIdx[i] + 1}/{t.spotify.length}
+                      🎧 候補 {selected + 1}/{t.spotify.length}
                     </p>
-                    {cur ? (
-                      <>
-                        <p className="font-semibold">{cur.name}</p>
-                        <p className="text-gray-300">{cur.artist}</p>
-                      </>
-                    ) : (
-                      <p className="italic text-red-400">見つかりません</p>
-                    )}
+                    {t.spotify.map((cand, idx) => {
+                      if (idx !== selected) return null;
+                      const id = cand.uri?.split(":")[2];
+                      const url = id
+                        ? `https://open.spotify.com/track/${id}`
+                        : undefined;
+                      return url ? (
+                        <a
+                          key={idx}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-semibold hover:underline block"
+                        >
+                          {cand.name}
+                        </a>
+                      ) : (
+                        <p key={idx} className="font-semibold">
+                          {cand.name}
+                        </p>
+                      );
+                    })}
+                    <p className="text-gray-300">
+                      {t.spotify[selected]?.artist}
+                    </p>
                   </div>
                 </div>
               </div>
