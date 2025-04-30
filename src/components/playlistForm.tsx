@@ -45,7 +45,11 @@ export default function PlaylistForm() {
   /* ---- プレビュー再生 ---- */
   const togglePreview = (idx: number) => {
     const url = tracks[idx].spotify[selIdx[idx]]?.preview;
-    if (!url) return alert("この候補はプレビューがありません");
+    if (!url) {
+      setToast("この候補はプレビューがありません");
+      setTimeout(() => setToast(""), 2500);
+      return;
+    }
 
     if (playing?.i === idx) {
       playing.audio.pause();
@@ -120,13 +124,10 @@ export default function PlaylistForm() {
         const url = data.playlistUrl;
         const isMobile = /Mobi|Android|iPhone|iPad/.test(navigator.userAgent);
         if (isMobile) {
-          // extract playlist ID and build Spotify URI
           const match = url.match(/playlist\/([A-Za-z0-9]+)/);
           const playlistId = match ? match[1] : null;
           const appUrl = playlistId ? `spotify:playlist:${playlistId}` : url;
-          // try opening in app
           window.location.href = appUrl;
-          // fallback to browser after 1s
           setTimeout(() => {
             window.location.href = url;
           }, 1000);
@@ -155,11 +156,12 @@ export default function PlaylistForm() {
   };
 
   useEffect(() => {
-    if (fileRef.current && imageFile)
+    if (fileRef.current && imageFile) {
       fileRef.current.previousElementSibling?.setAttribute(
         "title",
         imageFile.name
       );
+    }
   }, [imageFile]);
 
   /* ========== JSX ========== */
@@ -172,10 +174,10 @@ export default function PlaylistForm() {
         </div>
       )}
 
-      {/* Header（プレイリスト名・作成ボタン等は省略せず以前のまま） */}
+      {/* Header */}
       {tracks.length > 0 && (
-        <header className="sticky top-0 z-10 bg-black/80 backdrop-blur px-4 py-3 border-b border-green-500 flex flex-wrap items-center gap-3">
-          <div className="flex gap-1 mr-2">
+        <header className="sticky top-0 z-10 bg-black/80 backdrop-blur px-3 py-2 border-b border-green-500 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-1">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="w-5 h-5 text-green-500"
@@ -192,37 +194,46 @@ export default function PlaylistForm() {
             </a>
           </div>
 
-          <input
-            value={playlistName}
-            onChange={(e) => setPlaylistName(e.target.value)}
-            placeholder="プレイリスト名"
-            className="flex-1 min-w-[160px] p-2 rounded bg-black border border-green-500 text-green-500 focus:outline-none"
-          />
-
-          <label className="flex items-center gap-1 text-green-400 text-xs cursor-pointer">
+          <div className="flex-1 mx-2">
             <input
-              type="checkbox"
-              className="accent-green-500"
-              checked={openOnCreate}
-              onChange={() => setOpenOnCreate((x) => !x)}
+              value={playlistName}
+              onChange={(e) => setPlaylistName(e.target.value)}
+              placeholder="プレイリスト名"
+              className="w-full p-2 rounded bg-black border border-green-500 text-green-500 focus:outline-none"
             />
-            作成後に Spotify を開く
-          </label>
+          </div>
 
-          <div className="ml-auto flex gap-2">
-            <button
-              onClick={handleCreate}
-              disabled={!checked.some(Boolean) || loading}
-              className="px-6 py-2 bg-green-600 text-black font-semibold rounded disabled:opacity-40 hover:scale-105 transition"
-            >
-              {loading ? "作成中…" : "✅ 作成"}
-            </button>
-            <button
-              onClick={resetAll}
-              className="px-4 py-2 text-green-400 hover:text-green-200"
-            >
-              新規
-            </button>
+          {/* Spotify トグル - PC は横配置 / Mobile は縦で全幅 */}
+          <div className="w-full sm:w-auto order-3 sm:order-2 flex justify-center sm:justify-start mt-2 sm:mt-0">
+            <label className="w-full sm:w-auto flex items-center gap-1 p-1 bg-black/20 rounded border border-green-500 text-green-400 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                className="accent-green-500"
+                checked={openOnCreate}
+                onChange={() => setOpenOnCreate((x) => !x)}
+              />
+              作成後に Spotify を開く
+            </label>
+          </div>
+
+          {/* 新規 / 作成 + Spotify トグル */}
+          <div className="order-4 sm:order-4 mt-2 sm:mt-0 w-full sm:w-auto flex flex-col items-stretch gap-2">
+            {/* ボタン行 */}
+            <div className="flex flex-row gap-2">
+              <button
+                onClick={resetAll}
+                className="flex-1 sm:flex-none px-8 py-3 sm:px-6 sm:py-2 border border-green-500 text-green-500 font-semibold rounded hover:bg-green-500 hover:text-black transition"
+              >
+                新規
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={!checked.some(Boolean) || loading}
+                className="flex-1 sm:flex-none px-8 py-3 sm:px-6 sm:py-2 bg-green-600 text-black font-semibold rounded disabled:opacity-40 hover:scale-105 transition"
+              >
+                {loading ? "作成中…" : "✅ 作成"}
+              </button>
+            </div>
           </div>
 
           {/* Spotify Attribution */}
@@ -353,9 +364,28 @@ export default function PlaylistForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 border border-green-500 text-green-500 rounded hover:bg-green-500 hover:text-black disabled:opacity-50 transition"
+            className="w-full py-3 bg-gradient-to-r from-green-500 via-emerald-400 to-teal-400 text-black font-bold rounded shadow-lg hover:shadow-emerald-400/60 active:scale-95 disabled:opacity-50 transition-all duration-200"
           >
-            {loading ? "検索中…" : "OCR＋Spotify 検索"}
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                {/* spinner */}
+                <svg
+                  className="w-4 h-4 animate-spin"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" opacity="0.25" />
+                  <path d="M22 12a10 10 0 0 1-10 10" />
+                </svg>
+                読み込み中…
+              </span>
+            ) : (
+              "🚀 OCR＋Spotify 検索"
+            )}
           </button>
         </form>
       )}
@@ -372,11 +402,13 @@ export default function PlaylistForm() {
                 onClick={() =>
                   setChecked((c) => c.map((v, idx) => (idx === i ? !v : v)))
                 }
-                className={`p-4 rounded cursor-pointer border ${
-                  checked[i]
-                    ? "border-green-500 bg-green-900/10"
-                    : "border-gray-600 opacity-70"
-                }`}
+                className={`p-4 rounded cursor-pointer border transform transition-shadow duration-200
+                  hover:shadow-lg hover:-translate-y-1
+                  ${
+                    checked[i]
+                      ? "border-green-500 bg-green-900/10"
+                      : "border-gray-600 opacity-70"
+                  }`}
               >
                 <div className="flex gap-3">
                   {/* チェックボックス */}
@@ -391,34 +423,41 @@ export default function PlaylistForm() {
                   />
 
                   {/* 候補画像＆ナビゲーション */}
-                  <div className="relative">
+                  <div className="relative group">
                     {t.spotify.map((cand, idx) => {
                       if (idx !== selected) return null;
                       const id = cand.uri?.split(":")[2];
                       const url = id
                         ? `https://open.spotify.com/track/${id}`
                         : undefined;
-                      return url ? (
-                        <a
-                          key={idx}
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                        >
+                      return (
+                        <React.Fragment key={idx}>
                           <img
                             src={cand.albumImage!}
                             alt={cand.name!}
                             className="w-28 h-28 object-cover rounded"
                           />
-                        </a>
-                      ) : (
-                        <img
-                          key={idx}
-                          src={cand.albumImage!}
-                          alt={cand.name!}
-                          className="w-28 h-28 object-cover rounded"
-                        />
+                          {url && (
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute bottom-1 right-1 p-1 bg-black/70 rounded-full hover:bg-green-600 transition"
+                            >
+                              {/* external‑link icon */}
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="w-4 h-4 text-white"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                              >
+                                <path d="M14 3h7v7h-2V6.414l-9.293 9.293-1.414-1.414L17.586 5H14V3z" />
+                                <path d="M5 5h5V3H3v7h2V5z" />
+                              </svg>
+                            </a>
+                          )}
+                        </React.Fragment>
                       );
                     })}
 
@@ -435,7 +474,7 @@ export default function PlaylistForm() {
                             )
                           );
                         }}
-                        className="absolute -left-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center"
+                        className="absolute -left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center"
                       >
                         ❮
                       </button>
@@ -452,7 +491,7 @@ export default function PlaylistForm() {
                             )
                           );
                         }}
-                        className="absolute -right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center"
+                        className="absolute -right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center"
                       >
                         ❯
                       </button>
