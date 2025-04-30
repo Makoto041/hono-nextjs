@@ -6,7 +6,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center overflow-hidden">
       {/* 背景円 */}
-      <div className="absolute w-[40rem] h-[40rem] rounded-full bg-green-700/20 blur-3xl animate-blob" />
+      <div className="absolute w-[28rem] h-[28rem] sm:w-[40rem] sm:h-[40rem] rounded-full bg-green-700/20 blur-3xl animate-blob pointer-events-none" />
 
       {/* アイコン＋タイトル */}
       <div className="flex flex-col items-center gap-4 animate-drop">
@@ -43,6 +43,17 @@ export default function LoginPage() {
         <span className="relative z-10">Spotifyでログイン</span>
         {/* ホバーで右→左に走る光 */}
         <span className="absolute inset-0 bg-white/40 translate-x-full group-hover:translate-x-0 transition-transform duration-300" />
+      </a>
+
+      {/* ---------- バグ報告リンク (右下) ---------- */}
+      <a
+        href="https://forms.gle/N6pMr7MzWXwctRGf8"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="バグ報告フォーム"
+        className="fixed bottom-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-green-600/80 hover:bg-green-600 transition shadow-lg"
+      >
+        <span className="text-xl">🐞</span>
       </a>
 
       {/* keyframes */}
