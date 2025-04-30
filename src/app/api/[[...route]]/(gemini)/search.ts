@@ -30,17 +30,15 @@ app.post("/", async (c) => {
       .filter((a) => a.length === 2)
       .map(([title, artist]) => ({ title, artist }));
   } else {
+    // ---------- image input ----------
     const file = form.get("file");
     if (!(file instanceof File) || !file.type.startsWith("image/"))
       return c.json({ error: "Invalid file" }, 400);
 
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-    ocrTracks = await analyzeImageWithGemini(
-      base64,
-      file.name,
-      `
-以下の指示に従って、画像内のセットリストから曲名とアーティスト名のみを高精度で抽出し、シンプルな JSON 配列で返してください。
 
+    const ocrPrompt = `
+以下の指示に従って、画像内のセットリストから曲名とアーティスト名のみを高精度で抽出し、シンプルな JSON 配列で返してください。
 【手順】
 1. OCR を使って画像から全テキストを取得する。
 2. 「No.」「#」「Tracklist」「Setlist」「Date」「Venue」「会場」「日付」など、番号・見出し・日付・会場名の行はすべて無視する。
@@ -54,17 +52,23 @@ app.post("/", async (c) => {
 
 [
   {
-    "track_number": トラックナンバー1 (1-indexed),
+    "track_number": 1,
     "title": "曲名",
     "artist": "アーティスト名"
-  },
-  {
-    "track_number": トラックナンバー2 (1-indexed),
-    "title": "曲名",
-    "artist": "アーティスト名"
-  }, ...
-`
-    );
+  }
+]
+`;
+
+    try {
+      // analyzeImageWithGemini 内部でフォールバックモデルを順番に試す
+      ocrTracks = await analyzeImageWithGemini(base64, file.name, ocrPrompt);
+    } catch (err: any) {
+      const status = err?.response?.status ?? 500;
+      // 503 / 429 / 504 は「サービス側が忙しい」系として同じ扱い
+      const code = [503, 429, 504].includes(status) ? 503 : 500;
+      console.error("OCR failed:", err);
+      return c.json({ error: "OCR failed" }, code);
+    }
   }
 
   if (!ocrTracks.length) return c.json({ error: "No tracks found" }, 400);
